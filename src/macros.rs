@@ -1,6 +1,6 @@
 #[macro_export]
 macro_rules! error {
-    ($cond:expr -> $err:expr) => {
+    ($cond:expr => $err:expr) => {
         if $cond {
             Err($err)?
         }
@@ -9,31 +9,35 @@ macro_rules! error {
 
 #[macro_export]
 macro_rules! update {
-    ($entity:ty @ $id:expr) => {
-        <$entity>::update_many().filter(<$entity>::primary_column().eq($id.into()))
+    ($entity:ty where $col:ident : $id:expr) => {
+        <$entity>::update_many().filter(<$entity as EntityTrait>::Column::$col.eq($id))
     };
 
-    ($entity:ty @ $id:expr => { $($col:ident: $val:expr),* $(,)? }) => {{
+    ($entity:ty : $id:expr) => {
+        update!($entity where Id : $id)
+    };
+
+    ($entity:ty : $id:expr => { $($col:ident : $val:expr),* $(,)? }) => {{
         let mut query = <$entity>::update_many()
-            .filter(<$entity>::primary_column().eq($id.into()));
+            .filter(<$entity as EntityTrait>::Column::Id.eq($id));
         $(
-            query = query.set(<$entity>::Column::$col.set($val));
+            query = query.col_expr(<$entity as EntityTrait>::Column::$col, Expr::value($val));
         )*
         query
     }};
-
-    ($entity:ty @ $id:expr => { $($col:ident $op:tt $rhs:tt),* $(,)? }) => {{
-        use sea_orm::sea_query::{Expr, Value, BinOper};
+    ($entity:ty where $id_col:ident : $id:expr => { $($col:ident : $val:expr),* $(,)? }) => {{
         let mut query = <$entity>::update_many()
-            .filter(<$entity>::primary_column().eq($id.into()));
-
+            .filter(<$entity as EntityTrait>::Column::$id_col.eq($id));
         $(
-            let right_expr = parse_expr!($entity, $rhs);
-            query = query.value(
-                <$entity>::Column::$col,
-                Expr::col(<$entity>::Column::$col).$op(right_expr),
-            );
+            query = query.col_expr(<$entity as EntityTrait>::Column::$col, Expr::value($val));
         )*
         query
     }};
+}
+
+#[macro_export]
+macro_rules! action {
+    ($repo:expr ; $action_type:ident @ $id:expr => $description:expr) => {
+        $repo.new_action($id, models::actions::Type::$action_type, $description).await?;
+    };
 }

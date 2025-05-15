@@ -3,6 +3,4 @@ mod models;
 mod repository;
 
 #[tokio::main]
-async fn main() {
-    println!("Hello, world!");
-}
+async fn main() {}
