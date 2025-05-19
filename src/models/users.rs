@@ -7,7 +7,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
     pub id: i64,
     pub role: Role,
-    #[sea_orm()]
+    pub username: Option<String>,
+    pub nickname: String,
     pub warns: i64,
     pub created_at: DateTimeWithTimeZone,
 }

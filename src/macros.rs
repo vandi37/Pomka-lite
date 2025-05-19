@@ -38,6 +38,8 @@ macro_rules! update {
 #[macro_export]
 macro_rules! action {
     ($repo:expr ; $action_type:ident @ $id:expr => $description:expr) => {
-        $repo.new_action($id, models::actions::Type::$action_type, $description).await?;
+        $repo
+            .new_action($id, models::actions::Type::$action_type, $description)
+            .await?;
     };
 }

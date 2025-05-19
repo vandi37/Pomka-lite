@@ -1,10 +1,10 @@
 use crate::models::actions::Type;
-use crate::models::{actions, commands, prelude::*};
+use crate::models::{actions, commands, prelude::*, users};
 use crate::{action, error, models, update};
 use sea_orm::prelude::Json;
 use sea_orm::{
     sqlx, ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QuerySelect, RuntimeErr,
+    PaginatorTrait, QueryFilter, QuerySelect, RuntimeErr,
 };
 use sea_orm_migration::sea_query::Expr;
 use serde_json::json;
@@ -34,15 +34,44 @@ impl super::RepositoryTrait for Repository {
         }
     }
 
-    async fn new_user(&self, role: Role) -> Result<i64, Self::Error> {
-        let user = User {
-            role: Set(role),
-            ..Default::default()
+    async fn new_user(
+        &self,
+        id: i64,
+        role: Role,
+        username: Option<String>,
+        nickname: String,
+    ) -> Result<(), Self::Error> {
+        if UserEntity::find_by_id(id).count(&self.db).await? > 0 {
+            update!(UserEntity: id => {
+                Username: username,
+            })
+            .exec(&self.db)
+            .await?;
+        } else {
+            User {
+                id: Set(id),
+                username: Set(username),
+                nickname: Set(nickname),
+                role: Set(role),
+                ..Default::default()
+            }
+            .insert(&self.db)
+            .await?;
+            action!(self; CreateUser@id => json!({}));
         }
-        .insert(&self.db)
+        Ok(())
+    }
+
+    async fn change_nickname(&self, by: i64, id: i64, nickname: String) -> Result<(), Self::Error> {
+        if by != id {
+            error!(UserEntity::find_by_id(by).one(&self.db).await?.ok_or(RepoError::NotFound)?.role < Role::Moderator => RepoError::Forbidden);
+        };
+        update!(UserEntity: id => {
+            Nickname: nickname,
+        })
+        .exec(&self.db)
         .await?;
-        action!(self; CreateUser@user.id => json!({}));
-        Ok(user.id)
+        Ok(())
     }
 
     async fn block_user(&self, by: i64, user: i64) -> Result<(), Self::Error> {
@@ -55,7 +84,8 @@ impl super::RepositoryTrait for Repository {
         error!(by_user.role < Role::Moderator => RepoError::Forbidden);
         error!(target_user.role != Role::User => RepoError::InvalidRole);
         update!(UserEntity: target_user.id => {
-            Role: Role::Blocked
+            Role: Role::Blocked,
+            Nickname: "_".to_string(),
         })
         .exec(&self.db)
         .await?;
@@ -124,7 +154,15 @@ impl super::RepositoryTrait for Repository {
             .ok_or(RepoError::NotFound)
     }
 
-    async fn warn(&self, by: i64, user: i64) -> Result<(), Self::Error> {
+    async fn get_user_by_username(&self, username: String) -> Result<UserModel, Self::Error> {
+        UserEntity::find()
+            .filter(users::Column::Username.eq(username))
+            .one(&self.db)
+            .await?
+            .ok_or(RepoError::NotFound)
+    }
+
+    async fn warn(&self, by: i64, user: i64) -> Result<bool, Self::Error> {
         let (by_user, target_user) = tokio::try_join!(
             UserEntity::find_by_id(by).one(&self.db),
             UserEntity::find_by_id(user).one(&self.db),
@@ -140,9 +178,10 @@ impl super::RepositoryTrait for Repository {
         .await?;
         action!(self; WarnUser@user => json!({"by":by, "warns":target_user.warns+1}));
         if target_user.warns + 1 >= self.max_warns {
-            self.block_user(by, user).await
+            self.block_user(by, user).await?;
+            Ok(true)
         } else {
-            Ok(())
+            Ok(false)
         }
     }
 
@@ -197,7 +236,7 @@ impl super::RepositoryTrait for Repository {
         let user = user.ok_or(RepoError::NotFound)?;
         error!(
             user.role == Role::Blocked ||
-            user.id == command.creator_id ||
+            user.id != command.creator_id ||
             user.role < Role::Moderator => RepoError::Forbidden
         );
 
@@ -221,7 +260,7 @@ impl super::RepositoryTrait for Repository {
         let command = command.ok_or(RepoError::CommandNotFound)?;
         let user = user.ok_or(RepoError::NotFound)?;
         error!(
-            user.id == command.creator_id ||
+            user.id != command.creator_id ||
             user.role < Role::Moderator => RepoError::Forbidden
         );
         CommandEntity::delete_by_id(&id).exec(&self.db).await?;
@@ -246,6 +285,18 @@ impl super::RepositoryTrait for Repository {
     ) -> Result<Vec<CommandModel>, Self::Error> {
         Ok(CommandEntity::find()
             .filter(commands::Column::CreatorId.eq(user))
+            .limit(Some(page))
+            .offset(Some(page * page_size))
+            .all(&self.db)
+            .await?)
+    }
+
+    async fn get_commands(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<Vec<CommandModel>, Self::Error> {
+        Ok(CommandEntity::find()
             .limit(Some(page))
             .offset(Some(page * page_size))
             .all(&self.db)
@@ -299,6 +350,15 @@ impl super::RepositoryTrait for Repository {
     ) -> Result<Vec<ActionModel>, Self::Error> {
         Ok(ActionEntity::find()
             .filter(actions::Column::UserId.eq(user))
+            .limit(Some(page))
+            .offset(Some(page * page_size))
+            .all(&self.db)
+            .await?)
+    }
+
+    async fn get_actions(&self,page: u64,
+                         page_size: u64,) -> Result<Vec<ActionModel>, Self::Error> {
+        Ok(ActionEntity::find()
             .limit(Some(page))
             .offset(Some(page * page_size))
             .all(&self.db)

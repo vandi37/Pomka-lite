@@ -19,6 +19,8 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Users::Role).string().not_null())
+                    .col(ColumnDef::new(Users::Username).string())
+                    .col(ColumnDef::new(Users::Nickname).string().not_null())
                     .col(
                         ColumnDef::new(Users::Warns)
                             .big_integer()
@@ -126,6 +128,8 @@ enum Users {
     Table,
     Id,
     Role,
+    Username,
+    Nickname,
     Warns,
     CreatedAt,
 }

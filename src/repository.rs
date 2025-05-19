@@ -7,14 +7,22 @@ pub trait RepositoryTrait {
     type Error;
     type Options;
     fn new(options: Self::Options) -> Self;
-    async fn new_user(&self, role: Role) -> Result<i64, Self::Error>;
+    async fn new_user(
+        &self,
+        id: i64,
+        role: Role,
+        username: Option<String>,
+        nickname: String,
+    ) -> Result<(), Self::Error>;
+    async fn change_nickname(&self, by: i64, id: i64, nickname: String) -> Result<(), Self::Error>;
     async fn block_user(&self, by: i64, user: i64) -> Result<(), Self::Error>;
     async fn unblock_user(&self, by: i64, user: i64) -> Result<(), Self::Error>;
     async fn promote_user(&self, by: i64, user: i64) -> Result<(), Self::Error>;
     async fn demote_user(&self, by: i64, user: i64) -> Result<(), Self::Error>;
     async fn get_user(&self, user: i64) -> Result<UserModel, Self::Error>;
+    async fn get_user_by_username(&self, username: String) -> Result<UserModel, Self::Error>;
 
-    async fn warn(&self, by: i64, user: i64) -> Result<(), Self::Error>;
+    async fn warn(&self, by: i64, user: i64) -> Result<bool, Self::Error>;
     async fn un_warn(&self, by: i64, user: i64) -> Result<(), Self::Error>;
 
     async fn create_command(
@@ -29,6 +37,11 @@ pub trait RepositoryTrait {
     async fn get_user_commands(
         &self,
         user: i64,
+        page: u64,
+        page_size: u64,
+    ) -> Result<Vec<CommandModel>, Self::Error>;
+    async fn get_commands(
+        &self,
         page: u64,
         page_size: u64,
     ) -> Result<Vec<CommandModel>, Self::Error>;
@@ -47,4 +60,6 @@ pub trait RepositoryTrait {
         page: u64,
         page_size: u64,
     ) -> Result<Vec<ActionModel>, Self::Error>;
+    async fn get_actions(&self, page: u64, page_size: u64)
+        -> Result<Vec<ActionModel>, Self::Error>;
 }
