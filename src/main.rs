@@ -4,14 +4,12 @@ use teloxide::dispatching::DefaultKey;
 use teloxide::prelude::*;
 use crate::command::{handle_commands, Command};
 use crate::error::Error;
-use crate::filter::filter;
 
 mod from_env;
 mod macros;
 mod models;
 mod repository;
 mod role;
-mod handler;
 mod command;
 mod filter;
 mod error;
@@ -36,10 +34,10 @@ async fn main() {
         dptree::entry()
             .filter_command::<Command>()
             .endpoint(handle_commands)
-    )
-        .branch(dptree::entry()
+    );
+        /* .branch(dptree::entry()
             .endpoint(filter)
-        );
+        );*/
 
 
         /*.inspect_async(|m: Message| async {

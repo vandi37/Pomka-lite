@@ -20,7 +20,7 @@ where R: RepositoryTrait {
             let (first, after) = text.split_once(char::is_whitespace)
                     .unwrap_or((text, ""));
             match first {
-
+                _ => ()
             };
         }
         Ok(())
