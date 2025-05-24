@@ -10,7 +10,7 @@ const MAX_WARNS: &'static str = "MAX_WARNS";
 const CREATOR: &'static str = "CREATOR";
 
 #[derive(Debug)]
-enum ConnError {
+pub enum ConnError {
     VarError(VarError),
     DbError(DbErr),
 }

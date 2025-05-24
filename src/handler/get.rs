@@ -9,13 +9,13 @@ impl<R> crate::handler::Handler<R>
 where
     R: RepositoryTrait<Error = RepoError>,
 {
-    pub async fn get_user(&self, message: &mut Message) -> Result<UserModel, RepoError> {
+    pub async fn get_user(&self, message: &mut Message) -> Result<Option<UserModel>, RepoError> {
         if let Some(from) = if let Some(reply) = message.reply_to_message() {
             &reply.from
         } else {
             &None
         } {
-            self.repo.get_user(from.id.0 as i64).await
+            return Ok(Some(self.repo.get_user(from.id.0 as i64).await?))
         } else if let Some(entities) = message.entities() {
             for entity in entities {
                 match &entity.kind {
@@ -27,7 +27,7 @@ where
                         new_text.replace_range(entity.offset..entity.offset + entity.length, "");
                         let result = self.repo.get_user_by_username(mention_without_at.to_owned()).await;
                         set_message_text(message, new_text);
-                        return result
+                        return result.map(|user| Some(user))
                     }
                     MessageEntityKind::TextMention { user } => {
                         let text = message.text().unwrap_or_default();
@@ -35,15 +35,14 @@ where
                         new_text.replace_range(entity.offset..entity.offset + entity.length, "");
                         let result = self.repo.get_user(user.id.0 as i64).await;
                         set_message_text(message, new_text);
-                        return result;
+                        return result.map(|user| Some(user))
                     }
                     _ => continue,
                 };
             };
-            Err(RepoError::NotFound)
-        } else {
-            Err(RepoError::NotFound)
-        }
+        };
+
+        Ok(None)
     }
 }
 
